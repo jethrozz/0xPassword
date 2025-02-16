@@ -45,21 +45,34 @@ export function OwnedObjects() {
 const sendMessageToBackground = () => {
   if (chrome?.runtime?.id) {
     try {
-      const param = {
-        "id": "cdba57e5-87de-4294-aa6e-4dac48d36d9c",
-        "payload": {
-            "type": "method-payload",
-            "method": "signData",
-            "args": {
-                "data": "zxcvbnm",
-                "id": "db5e13a2-8ba9-4ec9-a7dc-7e1c05236dbc"
-            }
-        }
-     }
+
+
+      const getPermissionRequests = {
+          "type": "get-permission-requests"
+      }
+
+    //   const getStoredEntities = {
+    //     "method": "getStoredEntities",
+    //     "type": "method-payload",
+    //     "args": {
+    //         "type": "accounts"
+    //     }
+    // }
+    //   const param = {
+    //     "id": "cdba57e5-87de-4294-aa6e-4dac48d36d9c",
+    //     "payload": {
+    //         "type": "method-payload",
+    //         "method": "signData",
+    //         "args": {
+    //             "data": "zxcvbnm",
+    //             "id": "db5e13a2-8ba9-4ec9-a7dc-7e1c05236dbc"
+    //         }
+    //     }
+    //  }
       const EXTENSION_ID = 'enkfgmgibemcnjlmikgfblelnjhgdmdg'; // 替换为目标扩展的 ID
       chrome.runtime.sendMessage(EXTENSION_ID, {
-        method: 'signData',
-        params: param
+        method: 'doUI',
+        params: JSON.stringify(getPermissionRequests)
       }, (response) => {
         if (chrome.runtime.lastError) {
           console.error('扩展消息发送错误:', chrome.runtime.lastError);
