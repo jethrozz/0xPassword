@@ -22,7 +22,7 @@ export default defineConfig({
       input: {
         main: 'index.html',
         content: 'src/content/content.js',
-        back: 'src/back/service_worker.js'
+        back: 'src/back/service_worker.ts'
       },
       output: {
         entryFileNames: '[name].js',
