@@ -1,174 +1,351 @@
-import {  useSuiClientQuery, useSuiClient, useAccounts } from "@mysten/dapp-kit";
-import { useEffect } from 'react';
-//import { SuiClient, SuiClientOptions } from '@mysten/sui/client';
-import { Buffer } from 'buffer';
-//import { Transaction } from "@mysten/sui/transactions";
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-//import { fromHex } from '@mysten/bcs';
-import { Flex,Heading, Text } from "@radix-ui/themes";
+import { SuiGraphQLClient } from '@mysten/sui/graphql';
+import { AccountInfo } from './back/0xPasswordUtil';
+import { useEffect, useState, useRef } from 'react';
+import { Flex, Text, Button, TextField } from "@radix-ui/themes";
+import AES from 'crypto-js/aes';
+import encUtf8 from 'crypto-js/enc-utf8';
 
-
-
-function generateAddressFromPrivateKey(mnemonic: string): string {
-// 助记词
-//const mnemonic = 'result crisp session latin ...'; // 替换为你的助记词
-
-// 派生路径（默认路径）
-const derivationPath = "m/44'/784'/0'/0'/0'";
-
-// 通过助记词派生密钥对
-const keypair = Ed25519Keypair.deriveKeypair(mnemonic, derivationPath);
-
-// 获取私钥
-const privateKey = keypair.getSecretKey();
-console.log('Private Key:', privateKey);
-
-// 获取公钥和地址
-const publicKey = keypair.getPublicKey();
-const address = publicKey.toSuiAddress();
-console.log('Public Key:', publicKey.toBase64());
-console.log('Sui Address:', address);
-return privateKey;
-}
+const configSalt = "0xpassword";
 
 declare global {
   interface Window {
     chrome: typeof chrome;
   }
 }
-
-export function OwnedObjects() {
-  useAccounts
-  const suiClient = useSuiClient();
-  console.log(suiClient);
-// 使用 chrome.runtime.id 获取当前扩展的ID
-const sendMessageToBackground = () => {
-  if (chrome?.runtime?.id) {
-    try {
-
-
-      const getPermissionRequests = {
-          "type": "get-permission-requests"
-      }
-
-    //   const getStoredEntities = {
-    //     "method": "getStoredEntities",
-    //     "type": "method-payload",
-    //     "args": {
-    //         "type": "accounts"
-    //     }
-    // }
-    //   const param = {
-    //     "id": "cdba57e5-87de-4294-aa6e-4dac48d36d9c",
-    //     "payload": {
-    //         "type": "method-payload",
-    //         "method": "signData",
-    //         "args": {
-    //             "data": "zxcvbnm",
-    //             "id": "db5e13a2-8ba9-4ec9-a7dc-7e1c05236dbc"
-    //         }
-    //     }
-    //  }
-      const EXTENSION_ID = 'enkfgmgibemcnjlmikgfblelnjhgdmdg'; // 替换为目标扩展的 ID
-      chrome.runtime.sendMessage(EXTENSION_ID, {
-        method: 'doUI',
-        params: JSON.stringify(getPermissionRequests)
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.error('扩展消息发送错误:', chrome.runtime.lastError);
-          return;
+type PasswordObject = {
+  id: string,
+  iv: string,
+  pw: string,
+  username: string,
+  salt: string,
+  website: string
+}
+type PasswordNodeObject = {
+  address: {
+    objects: {
+      edges: Array<{
+        node: {
+          contents: {
+            json: {
+              id: string,
+              iv: string,
+              pw: string,
+              username: string,
+              salt: string,
+              website: string
+            }
+          }
         }
-        console.log(response);
-        if (response?.success) {
-          console.log('收到数据:', response.data);
-        } else {
-          console.error('响应错误:', response?.error);
-        }
-      });
-    } catch (error) {
-      console.error('发送消息时出错:', error);
+      }>
     }
-  } else {
-    console.log('Chrome扩展环境未就绪');
   }
 };
 
-// 在组件中调用
-useEffect(() => {
-  sendMessageToBackground();
-}, []);
-  //    readonly address: string;
+export function OwnedObjects() {
 
-    /** Public key of the account, corresponding with a secret key to use. */
-    //readonly publicKey: ReadonlyUint8Array;
-  const account = {
-    "address":"0x91459991a3e1778334dc4bd007cb90fe9989a4aabfcef4ed19095e712507ea43",
-    "publicKeyBase64":"AI0r1mnkV381AFG9PtotmT6MQBS4qhxrLWKxPgM4EWEm",
-    "publicKey": new Uint8Array(Buffer.from("AI0r1mnkV381AFG9PtotmT6MQBS4qhxrLWKxPgM4EWEm", 'base64'))
+  const [account, setAccount] = useState<AccountInfo | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [cryptoKey, setCryptoKey] = useState("");
+  const [walletId, setWalletId] = useState("");
+  const [passwordData, setPasswordData] = useState<Array<PasswordObject>>([]); // 新增状态存储密码数据
+  const [pageOrigin, setPageOrigin] = useState(window.location.origin);
+  const pageOriginRef = useRef(pageOrigin);
+
+  useEffect(() => {
+    pageOriginRef.current = pageOrigin;
+  }, [pageOrigin]);
+
+  useEffect(() => {
+    // 处理扩展页面获取真实页面源
+    if (window.location.protocol === 'chrome-extension:') {
+      chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+        console.log(tabs);
+        // 添加错误处理
+        if (chrome.runtime.lastError) {
+          console.error('Tab查询错误:', chrome.runtime.lastError);
+          return;
+        }
+        
+        chrome.tabs.sendMessage(
+          tabs[0]?.id!, 
+          {type: 'GET_PAGE_ORIGIN'}, 
+          (response) => {
+            if (chrome.runtime.lastError) {
+              console.error('消息发送失败:', chrome.runtime.lastError);
+              return;
+            }
+            setPageOrigin(response?.origin || window.location.origin);
+          }
+        );
+      });
+    }
+  }, []); // 空依赖数组表示只在挂载时执行
+
+  const sendGetSelectedAccount = () => {
+    console.log("GET_SELECTED_ACCOUNT send", account);
+    sendMessageToBackground({
+      type: "GET_SELECTED_ACCOUNT",
+      data: {}
+    });
+  }
+  const sendConfigUpdate = (cryptoKey: string, walletId : string) => {
+    console.log("sendConfigUpdate send", walletId);
+    sendMessageToBackground({
+      type: "CONFIG_UPDATE",
+      data: {
+        key: cryptoKey,
+        id: walletId
+      }
+    });
   };
-  console.log(account)
-  let address = account;
-  console.log(address);
-  // const tx = new Transaction();
-  // tx.setSender(address.address);
-  // tx.moveCall({
-  //   arguments: [tx.object(' 0x2f0afe5c95a5005ed8f0253f0bcb7222ba762d4a508591aea0926c2f08183238')],
-  //   target: `0xbf2358afa97c547af774ff26f468f717ea7ad8fb514cb6ff0798f6cfe53d9636::counter::increment`,
-  // });
-  // // 签名并发送交易
-  // const signer = new Signer();
-  // const response = await suiClient.signAndExecuteTransaction({
-  //   transaction: tx,
-  //   signer: account
-  // });
-  // console.log('交易响应:', response);
-  // 设置交易发送者
+  // 使用 chrome.runtime.id 获取当前扩展的ID
+  const sendMessageToBackground = (message: any) => {
+    window.chrome.runtime.sendMessage(
+      window.chrome.runtime.id,
+      message,
+      (response) => {
+        if (chrome.runtime.lastError) {
+          console.error('通信错误:', chrome.runtime.lastError);
+        } else {
+          console.log('收到响应:', response);
+          if(response.type === "GET_SELECTED_ACCOUNT_RESPONSE"){
+            if(response.code === 0){
+              localStorage.setItem("SELECTED_ACCOUNT", JSON.stringify(response.data));
+              setAccount(response.data);
+            }else {
+              sendGetSelectedAccount();
+            }
+          }
+        }
+      }
+    );
+  };
 
-  //
-  //const storedData = sessionStorage.getItem("aed246cd-2812-481b-a973-844d9a497381");
-  const googleData = sessionStorage.getItem("db5e13a2-8ba9-4ec9-a7dc-7e1c05236dbc");
-  console.log(googleData)
-  const mnemonic = 'pupil annual unique response volcano drum deny float book farm ride buzz';
-  const privateKey = generateAddressFromPrivateKey(mnemonic);
-  console.log('Generated privateKey:', privateKey);
-            // 签名并执行交易
 
-  const { data, isPending, error } = useSuiClientQuery(
-    "getOwnedObjects",
-    {
-      owner: account?.address as string,
-    },
-    {
-      enabled: !!account,
-    },
-  );
-
-  if (!account) {
-    return;
+  async function getPasswordObjects(suiGraphQLClient: SuiGraphQLClient, addr: string): Promise<PasswordNodeObject> {
+    return (await suiGraphQLClient.query({
+      query: `
+      query($addr: SuiAddress!) {
+  address(address: $addr) {
+    objects(filter: {type: "0xe97359510c7a9a4c864580cf2bdf10b9a12ae432a037064bdc42dde3ea761d44::PasswordManager::Password"}) {
+      edges {
+        node {
+          version
+          status
+          address
+          digest
+          owner {
+						... on AddressOwner {
+              owner {
+								address
+              }
+            }
+          }
+          contents {
+            type {
+              layout
+            }
+            json
+          }
+        }
+      }
+    }
+  }
+}
+      `,
+      variables: {
+        addr
+      }
+    })).data as PasswordNodeObject;
   }
 
-  if (error) {
-    return <Flex>Error: {error.message}</Flex>;
-  }
+  const suiGraphQLClient = new SuiGraphQLClient({
+    url: import.meta.env.VITE_SUI_GRAPHQL_URL || "https://sui-testnet.mystenlabs.com/",
+  })
 
-  if (isPending || !data) {
-    return <Flex>Loading...</Flex>;
-  }
+  useEffect(() => {
+    if (account?.address) { // 当account存在且有address时执行
+      getPasswordObjects(suiGraphQLClient, account.address)
+        .then((data) => {
+          console.log("getPasswordObjects", data);
+          console.log('getPasswordObjects 页面源:', pageOriginRef.current);
+          const passwordList = data.address.objects.edges
+            .filter(edge => 
+              edge.node.contents.json.website?.includes(pageOriginRef.current) // 过滤包含当前源的记录
+            )
+            .map(edge => ({
+              id: edge.node.contents.json.id,
+              iv: edge.node.contents.json.iv,
+              pw: edge.node.contents.json.pw,
+              username: edge.node.contents.json.username,
+              salt: edge.node.contents.json.salt,
+              website: edge.node.contents.json.website
+            })) as PasswordObject[];
+          
+          console.log("转换后的密码数据:", passwordList);
+          setPasswordData(passwordList);
+        })
+        .catch(error => {
+          console.error("获取密码数据失败:", error);
+        });
+    }
+  }, [account, pageOrigin]); // 添加account作为依赖项
 
-  
+  // 在组件中调用
+  useEffect(() => {
+    sendGetSelectedAccount();
+    const savedConfig = localStorage.getItem("WALLET_CONFIG");
+    if (savedConfig) {
+      try {
+        const bytes = AES.decrypt(savedConfig, configSalt)
+        const { key, id } = JSON.parse(bytes.toString(encUtf8));
+        console.log("cryptoKey", key)
+        setCryptoKey(key || "");
+        setWalletId(id || "");
+        sendConfigUpdate(key, id);
+      } catch (e) {
+        console.error("配置解密失败");
+      }
+    }
+    const savedAccount = localStorage.getItem("SELECTED_ACCOUNT");
+    if(savedAccount){
+       let savedAcc = JSON.parse(savedAccount) as AccountInfo;
+       setAccount(savedAcc);
+    }
 
-  return (
-    <Flex direction="column" my="2">
-      {data.data.length === 0 ? (
-        <Text>No objects owned by the connected wallet</Text>
-      ) : (
-        <Heading size="4">Objects owned by the connected wallet</Heading>
-      )}
-      {data.data.map((object) => (
-        <Flex key={object.data?.objectId}>
-          <Text>Object ID: {object.data?.objectId}</Text>
+  }, []);
+
+  // 保存配置
+  const saveConfig = () => {
+    console.log("cryptoKey", cryptoKey)
+    const encrypted = AES.encrypt(
+      JSON.stringify({ key: cryptoKey, id: walletId }),
+      configSalt
+    ).toString();
+    localStorage.setItem("WALLET_CONFIG", encrypted);
+    sendConfigUpdate(cryptoKey, walletId);    
+    setEditMode(false);
+  };
+
+  // 渲染配置界面
+  if (!cryptoKey || !walletId || editMode) {
+    return (
+      <Flex direction="column" gap="4" style={{ width: '100%' }}>
+        <Flex direction="column" gap="2" style={{ width: '100%' }}>
+          {account ? (
+            <Text>当前已选择账户: {account.address}</Text>
+          ) : (
+            <Text color="gray">当前未选择账户</Text>
+          )}
         </Flex>
-      ))}
+        <Flex direction="column" gap="2" style={{ width: '100%' }}>
+          <Text>修改配置: </Text>
+          <Flex gap="3" align="center">
+            <Text style={{ width: '100px' }}>加密密钥：</Text>
+            <TextField.Root 
+              type='password' 
+              size="2" 
+              placeholder="加密密钥" 
+              value={cryptoKey} 
+              onChange={(e) => setCryptoKey(e.target.value)}
+              style={{ flex: 1 }}
+            />
+          </Flex>
+          <Flex gap="3" align="center">
+            <Text style={{ width: '100px' }}>钱包插件ID：</Text>
+            <TextField.Root 
+              size="2" 
+              placeholder="钱包插件ID" 
+              value={walletId} 
+              onChange={(e) => setWalletId(e.target.value)}
+              style={{ flex: 1 }}
+            />
+          </Flex>
+          <Button onClick={saveConfig}>保存配置</Button>
+        </Flex>
+        <Flex direction="column" gap="2" style={{ width: '100%' }}>
+          <Text>当前网站已保存数据：</Text>
+          <Flex direction="column" gap="1" style={{
+            border: '1px solid var(--gray-5)',
+            borderRadius: 'var(--radius-2)',
+            padding: 'var(--space-2)',
+            fontSize: 'var(--font-size-1)'
+          }}>
+            {/* 简化表头 */}
+            <Flex gap="3" style={{ fontWeight: '500', color: 'var(--gray-11)' }}>
+              <Text style={{ flex: 2 }}>用户名</Text>
+              <Text style={{ flex: 1 }}>密码</Text>
+            </Flex>
+
+            {/* 示例数据行 */}
+            <Flex gap="3" align="center" style={{ padding: 'var(--space-2) 0' }}>
+              <Text style={{ flex: 2 }}>user123</Text>
+              <Text style={{ flex: 1 }}>*******</Text>
+            </Flex>
+
+            {/* 分隔线示例行 */}
+            <Flex gap="3" align="center" style={{
+              padding: 'var(--space-2) 0',
+              borderTop: '1px solid var(--gray-4)'
+            }}>
+              <Text style={{ flex: 2 }}>admin</Text>
+              <Text style={{ flex: 1 }}>*******</Text>
+            </Flex>
+          </Flex>
+        </Flex>
+      </Flex>
+    );
+  }
+
+  console.log("account", account);
+  // 显示已保存的配置
+  return (<Flex direction="column" gap="4" style={{ width: '100%' }}>
+    <Flex direction="column" gap="2" style={{ width: '100%' }}>
+      {account ? (
+        <Text>当前已选择账户: {account.address}</Text>
+      ) : (
+        <Text color="gray">当前未选择账户</Text>
+      )}
     </Flex>
+    <Flex direction="column" gap="2" style={{ width: '100%' }}>
+      <Text>当前配置: </Text>
+      <Text>加密密钥: {cryptoKey.slice(0, 3)}******</Text>
+      <Text>钱包插件ID: {walletId}</Text>
+      <Button onClick={() => setEditMode(true)}>修改配置</Button>
+    </Flex>
+    <Flex direction="column" gap="2" style={{ width: '100%' }}>
+      <Text>当前网站已保存数据：</Text>
+      <Flex direction="column" gap="1" style={{
+        border: '1px solid var(--gray-5)',
+        borderRadius: 'var(--radius-2)',
+        padding: 'var(--space-2)',
+        fontSize: 'var(--font-size-1)'
+      }}>
+        {/* 简化表头 */}
+        <Flex gap="3" style={{ fontWeight: '500', color: 'var(--gray-11)' }}>
+          <Text style={{ flex: 2 }}>用户名</Text>
+          <Text style={{ flex: 1 }}>密码</Text>
+        </Flex>
+
+        {/* 示例数据行 */}
+        {passwordData?.map((item) => (
+          <Flex 
+            key={item.id}
+            gap="3" 
+            align="center" 
+            style={{
+              padding: 'var(--space-2) 0',
+              borderTop: '1px solid var(--gray-4)'
+            }}
+          >
+            <Text style={{ flex: 2 }}>{item.username}</Text>
+            <Text style={{ flex: 1 }}>{item.pw.replace(/./g, '*')}</Text>
+          </Flex>
+        ))}
+      </Flex>
+    </Flex>
+  </Flex>
   );
 }
+
+

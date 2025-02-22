@@ -1,16 +1,24 @@
-# Sui dApp Starter Template
+## 项目名称
 
-This dApp was created using `@mysten/create-dapp` that sets up a basic React
-Client dApp using the following tools:
+0xPassword
 
-- [React](https://react.dev/) as the UI framework
-- [TypeScript](https://www.typescriptlang.org/) for type checking
-- [Vite](https://vitejs.dev/) for build tooling
-- [Radix UI](https://www.radix-ui.com/) for pre-built UI components
-- [ESLint](https://eslint.org/)
-- [`@mysten/dapp-kit`](https://sdk.mystenlabs.com/dapp-kit) for connecting to
-  wallets and loading data
-- [pnpm](https://pnpm.io/) for package management
+## 项目描述
+
+基于sui链的一个密码管理插件 
+类似于1password的插件
+
+## 密码保存和填充
+用户安装插件后（钱包和本插件）
+
+1. 设置用户主密码。
+2. 将用户主密码进行签名，拿到签名，用签名来派生密钥
+3. 用派生密钥来加密用户密码,  随机生成一个盐值，用盐值和派生密钥来加密用户密码
+4. 将加密后的密码存储在sui链上
+5. 用户在登录页面时，会自动匹配域名，填充用户名和密码
+
+## 主密码保存
+主密码保存在本地，用签名来派生密钥，用派生密钥来加密用户密码
+
 
 ## Starting your dApp
 

@@ -21,7 +21,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: 'index.html',
-        content: 'src/content/content.js',
+        content: 'src/content/content.ts',
         back: 'src/back/service_worker.ts'
       },
       output: {

@@ -1,6 +1,6 @@
 //import { ConnectButton } from "@mysten/dapp-kit";
 import { Box, Container, Flex, Heading } from "@radix-ui/themes";
-import { WalletStatus } from "./WalletStatus";
+import { OwnedObjects } from "./OwnedObjects";
 
 function App() {
   return (
@@ -16,7 +16,7 @@ function App() {
         }}
       >
         <Box>
-          <Heading>dApp Starter Template</Heading>
+          <Heading>Password Manager</Heading>
         </Box>
 
       </Flex>
@@ -27,7 +27,7 @@ function App() {
           px="4"
           style={{ background: "var(--gray-a2)", minHeight: 500 }}
         >
-          <WalletStatus />
+          <OwnedObjects />
         </Container>
       </Container>
     </>

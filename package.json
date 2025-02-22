@@ -14,10 +14,13 @@
     "@mysten/sui": "1.21.1",
     "@radix-ui/colors": "^3.0.0",
     "@radix-ui/react-icons": "^1.3.0",
-    "@radix-ui/themes": "^3.1.1",
+    "@radix-ui/themes": "^3.2.0",
     "@tanstack/react-query": "^5.50.1",
     "@types/chrome": "^0.0.301",
+    "@types/crypto-js": "^4.2.2",
     "buffer": "^6.0.3",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^16.4.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "vite-plugin-static-copy": "^2.2.0"
@@ -32,6 +35,7 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.7",
     "prettier": "^3.3.2",
+    "themes": "link:@types/radix-ui/themes",
     "typescript": "^5.7.2",
     "vite": "^6.0.7"
   },
