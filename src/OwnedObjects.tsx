@@ -91,7 +91,6 @@ export function OwnedObjects() {
     });
   }
   const sendConfigUpdate = (cryptoKey: string, walletId : string) => {
-    console.log("sendConfigUpdate send", walletId);
     sendMessageToBackground({
       type: "CONFIG_UPDATE",
       data: {
@@ -189,7 +188,6 @@ export function OwnedObjects() {
       try {
         const bytes = AES.decrypt(savedConfig, configSalt)
         const { key, id } = JSON.parse(bytes.toString(encUtf8));
-        console.log("cryptoKey", key)
         setCryptoKey(key || "");
         setWalletId(id || "");
         sendConfigUpdate(key, id);
@@ -207,7 +205,7 @@ export function OwnedObjects() {
 
   // 保存配置
   const saveConfig = () => {
-    console.log("cryptoKey", cryptoKey)
+    // 保存配置，cryptoKey 主加密密钥，
     const encrypted = AES.encrypt(
       JSON.stringify({ key: cryptoKey, id: walletId }),
       configSalt
