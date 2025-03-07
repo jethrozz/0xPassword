@@ -4,6 +4,8 @@ import { SuiGraphQLClient } from '@mysten/sui/graphql';
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { toBase64 } from '@mysten/sui/utils';
 import { aesEncrypt, aesDecrypt } from './aesUtil';
+import { GRAPHQL_URL } from '../common/const';
+import { getLocalStorage } from './service/storageService';
 
 const network = import.meta.env.VITE_SUI_NETWORK_ENV;
 console.log("network :", network);
@@ -39,11 +41,6 @@ interface SignRequest {
         };
     };
 }
-const getStorage = (key: string): Promise<any> => {
-    return new Promise(resolve => {
-      chrome.storage.local.get([key], result => resolve(result[key]));
-    });
-};
 
 export type PasswordObject = {
   id: string,
@@ -109,8 +106,8 @@ export async function callAddPassword(port: chrome.runtime.Port | null, pw: stri
         ]
   });
   const rpcUrl =  getFullnodeUrl(network);
-  getStorage
-  let account = await getStorage("SELECTED_ACCOUNT") as AccountInfo;
+
+  let account = await getLocalStorage("SELECTED_ACCOUNT") as AccountInfo;
   if(!account){
     throw new Error("当前未选择有效账户");
   }
@@ -131,17 +128,16 @@ export async function callAddPassword(port: chrome.runtime.Port | null, pw: stri
     }
 }
 
-export async function getPasswordObjects(addr: string, pageOrigin : string, mk: string): Promise<Array<PasswordObject>> {
-  const suiGraphQLClient = new SuiGraphQLClient({
-    url: import.meta.env.VITE_SUI_GRAPHQL_URL || "https://sui-testnet.mystenlabs.com/",
-  })
-  let type = packageId+"::"+moudle+"::Password";
-  console.log("type",type);
-  let data = (await suiGraphQLClient.query({
-    query: `
+export async function getPasswordObjects(addr: string, mk: string) : Promise<Array<PasswordObject>> {
+    const suiGraphQLClient = new SuiGraphQLClient({
+        url: GRAPHQL_URL || "https://sui-testnet.mystenlabs.com/",
+    })
+    let type = packageId+"::"+moudle+"::Password";
+    let data = (await suiGraphQLClient.query({
+        query: `
     query($addr: SuiAddress!) {
 address(address: $addr) {
-  objects(filter: {type: "`+type+`"}) {
+  objects(filter: {type: "`+ type + `"}) {
     edges {
       node {
         contents {
@@ -152,27 +148,29 @@ address(address: $addr) {
   }
 }
 }`,
-    variables: {
-      addr
-    }
-  })).data as PasswordNodeObject;
+        variables: {
+            addr
+        }
+    })).data as PasswordNodeObject;
 
-  const passwordList = await Promise.all(data.address.objects.edges
-    .filter(edge => 
-      edge.node.contents.json.website?.includes(pageOrigin)
-    )
-    .map(edge => ({
-      id: edge.node.contents.json.id,
-      iv: edge.node.contents.json.iv,
-      pw: edge.node.contents.json.pw,
-      username: edge.node.contents.json.username,
-      salt: edge.node.contents.json.salt,
-      website: edge.node.contents.json.website
-    }))
-    .map(async pdobj => ({
-      ...pdobj,
-      pw: await aesDecrypt(pdobj.pw, pdobj.iv, pdobj.salt, mk)
-    }))) as PasswordObject[];
+    const passwordList = await Promise.all(data.address.objects.edges
+        .map(edge => ({
+            id: edge.node.contents.json.id,
+            iv: edge.node.contents.json.iv,
+            pw: edge.node.contents.json.pw,
+            username: edge.node.contents.json.username,
+            salt: edge.node.contents.json.salt,
+            website: edge.node.contents.json.website
+        }))
+        .map(async pdobj => ({
+            ...pdobj,
+            pw: await aesDecrypt(pdobj.pw, pdobj.iv, pdobj.salt, mk)
+        }))) as PasswordObject[];
 
-  return passwordList;
+    return passwordList;
+}
+
+export async function getPasswordObjectsByPageOrigin(addr: string, pageOrigin : string, mk: string): Promise<Array<PasswordObject>> {
+    let passwordList = await getPasswordObjects(addr, mk);
+    return passwordList.filter(password => password.website?.includes(pageOrigin));
 }

@@ -36,7 +36,6 @@ export const getStorage = (key: string): Promise<any> => {
 // content script
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
     if (request.type === 'GET_PAGE_ORIGIN') {
-      console.log("ORIGIN", window.location.origin);
       sendResponse({origin: window.location.origin});
       return true; // 保持通道开放
     }
@@ -44,9 +43,7 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
 });
 
 const readyInputPassword = () => {
-    
     // 添加防重复触发机制
-
     if(passwordList && passwordList.length > 0){
         showCustomConfirm("是否自动填充账户和密码？", (confirmed: boolean) => {
             if(confirmed){
@@ -56,6 +53,7 @@ const readyInputPassword = () => {
                     setValue(usernameInput, password.username);
                 }
                 if(passwordInput) {
+                    //解密后再使用
                     setValue(passwordInput, password.pw);
                 }
             }
@@ -368,5 +366,3 @@ const config = {
 
 // 开始观察 document.body 的变化
 observer.observe(document.body, config);
-
-

@@ -61,7 +61,6 @@ export function OwnedObjects() {
     // 处理扩展页面获取真实页面源
     if (window.location.protocol === 'chrome-extension:') {
       chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-        console.log(tabs);
         // 添加错误处理
         if (chrome.runtime.lastError) {
           console.error('Tab查询错误:', chrome.runtime.lastError);
@@ -84,7 +83,6 @@ export function OwnedObjects() {
   }, []); // 空依赖数组表示只在挂载时执行
 
   const sendGetSelectedAccount = () => {
-    console.log("GET_SELECTED_ACCOUNT send", account);
     sendMessageToBackground({
       type: "GET_SELECTED_ACCOUNT",
       data: {}
@@ -123,7 +121,7 @@ export function OwnedObjects() {
   };
 
 
-  async function getPasswordObjects(suiGraphQLClient: SuiGraphQLClient, addr: string, type : string): Promise<PasswordNodeObject> {
+async function getPasswordObjects(suiGraphQLClient: SuiGraphQLClient, addr: string, type : string): Promise<PasswordNodeObject> {
     return (await suiGraphQLClient.query({
       query: `
       query($addr: SuiAddress!) {
@@ -144,7 +142,7 @@ export function OwnedObjects() {
         addr
       }
     })).data as PasswordNodeObject;
-  }
+}
 
   const suiGraphQLClient = new SuiGraphQLClient({
     url: import.meta.env.VITE_SUI_GRAPHQL_URL || "https://sui-testnet.mystenlabs.com/",
@@ -170,8 +168,6 @@ export function OwnedObjects() {
               salt: edge.node.contents.json.salt,
               website: edge.node.contents.json.website
             })) as PasswordObject[];
-          
-          console.log("转换后的密码数据:", passwordList);
           setPasswordData(passwordList);
         })
         .catch(error => {
